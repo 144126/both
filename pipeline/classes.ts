@@ -116,7 +116,7 @@ export const CLASSES: Record<string, DrugClass> = {
   aminoglycoside: { n: 'aminoglycoside antibiotic', p: /\baminoglycosides?\b/, e: /aminoglycoside/i, a: ['J01G'] },
   protease_inhibitor: { n: 'HIV or hepatitis C protease inhibitor', p: /\b(?:hiv[- ]?(?:1 )?)?protease inhibitors?\b/, e: /protease inhibitor/i, a: ['J05AE', 'J05AP'] },
   antiepileptic: { n: 'seizure medicine', p: /\bantiepileptics?\b|\banticonvulsants?\b|antiepileptic drugs?|\baeds?\b/, e: /anti-epileptic|anticonvulsant/i, a: ['N03'] },
-  stimulant: { n: 'stimulant', p: /\bcns stimulants?|\bstimulants?\b|\bamphetamines?\b|\bsympathomimetics?\b/, e: /central nervous system stimulant|sympathomimetic/i, a: ['N06BA', 'R01BA'] },
+  stimulant: { n: 'stimulant', p: /\bcns stimulants?|\bstimulants?\b|\bamphetamines?\b|\bsympathomimetics\b|\bsympathomimetic (?:drugs?|agents?|medications?)/, e: /central nervous system stimulant|sympathomimetic/i, a: ['N06BA', 'R01BA'] },
   vasopressor: { n: 'vasopressor', p: /\bvasopressors?\b|\bpressor agents?/, a: ['C01CA'] },
   dopamine_antagonist: { n: 'dopamine blocker', p: /\bdopamine (?:d2 )?(?:receptor )?antagonists?|dopamine blocking/, e: /dopamine.*antagonist|antipsychotic/i, a: ['N05A'], i: list('metoclopramide, prochlorperazine, promethazine, droperidol, domperidone') },
   dopamine_agonist: { n: 'Parkinson medicine (dopamine)', p: /\bdopamine (?:receptor )?agonists?|dopaminergic (?:agents?|drugs?)|\blevodopa\b/, e: /dopamine agonist|aromatic amino acid/i, a: ['N04B'] },

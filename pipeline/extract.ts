@@ -6,6 +6,7 @@ import { gunzipSync } from 'node:zlib';
 import { CLASSES } from './classes.ts';
 import { plain } from './names.ts';
 import { effects } from './effects.ts';
+import { members as members_of } from './resolve.ts';
 
 const vocab = JSON.parse(readFileSync('data/vocab.json', 'utf8'));
 const norm = (s: string) => plain(s).replace(/[^a-z0-9'.-]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -37,6 +38,7 @@ const self_in_class = (self: Set<string>, id: string) => [...self].some(s => {
 const TOGETHER = /concomitant|coadminist|co-administ|concurrent|in combination|combined with|combination with|together|in patients (?:receiving|taking|treated with|on)\b|when (?:used|given|taken|administered|combined) with|with (?:other|another|any)\b|(?:are|is|you are|if you are) (?:taking|receiving|using)|in addition to|added to/;
 // a class the label's own drug belongs to counts only as "other" members: "avoid other NSAIDs", "dual blockade of the RAS"
 const OTHER = /\b(?:other|another|additional|dual|two or more|more than one|second|multiple)\b/;
+const EXAMPLES = /\be\.?g\.?|\bsuch as\b|\bincluding\b|\bfor example\b|\bfor instance\b|\bexamples?\b|\blike\b/;
 const ALLERGY = /allerg|hypersensitiv|asthma|urticaria|anaphyla|cross-?(?:sensitivity|reactivity)/;
 
 const SECTIONS = ['contraindications', 'boxed_warning', 'drug_interactions', 'drug_interactions_table', 'warnings_and_cautions', 'warnings',
@@ -44,9 +46,10 @@ const SECTIONS = ['contraindications', 'boxed_warning', 'drug_interactions', 'dr
 const OTC_LEVEL: Record<string, string> = { do_not_use: 'x', ask_doctor_or_pharmacist: 'c', ask_doctor: 'c', when_using: 'c' };
 
 const X = /\bcontraindicated\b|\bmust not be (?:used|given|coadministered|co-administered|administered|taken)|\bdo not (?:coadminister|co-administer|use|take|administer|give|prescribe|initiate|start)\b[^.]{0,80}\b(?:with|in patients (?:taking|receiving|treated|on))\b/;
-const A = /\bavoid(?:ed|ance)?\b|\bnot recommended\b|\bshould not be (?:used|given|coadministered|co-administered|administered|taken|combined|started|prescribed)|\bshould not (?:take|use|receive)|\bdo not (?:use|take)\b|life[- ]threatening|\bfatal\b|\bdeaths?\b|\bprofound sedation/;
+const A = /\bavoid(?:ed|ance)?\b|\bnot recommended\b|\bshould not be (?:used|given|coadministered|co-administered|administered|taken|combined|started|prescribed)|\bshould not (?:take|use|receive)|\bdo not (?:use|take)\b/;
 const N = /\bno (?:clinically |pharmacokinetically )?(?:significant|relevant|meaningful|important|apparent|notable|appreciable|substantial)\b|\bno dose (?:adjustment|modification|change)s?\b|\bnot (?:clinically |considered )?(?:significant|relevant|meaningful)|\bdid not (?:significantly |meaningfully |substantially |appreciably )?(?:affect|alter|change|increase|decrease|influence|impact|modify|inhibit|induce)|\bno (?:effect|impact) on\b|\b(?:was|were) not (?:significantly )?(?:affected|altered|changed)|\bno (?:pharmacokinetic |drug[- ]drug |clinically relevant |significant )?interactions?\b|\bdoes not (?:affect|alter|interact|inhibit|induce)|\bnot expected to (?:affect|alter|interact|cause)|\bminimal effect/;
-const C = /\bmonitor|\bdos(?:e|age|ing) (?:adjustment|reduction|modification|titration|decrease|increase)|\b(?:reduce|adjust|decrease|increase|lower|limit|halve) (?:the )?(?:\w+ )?dos(?:e|age|ing)|\bconsider\b|\bcaution|\bseparate\b|\b(?:hours?|hrs?) (?:before|after|apart)|\btitrat|\bclosely\b|\bmay (?:increase|decrease|enhance|reduce|potentiate|result|cause|lead|alter|prolong|lower|raise|diminish)|\b(?:increase|decrease|raise|lower)(?:s|d)? (?:the )?(?:risk|exposure|concentrations?|levels?|plasma|serum|auc|cmax|effects?|efficacy|bioavailability|absorption|clearance)|\bpotentiat|\badditive\b|\benhance|\breduced? (?:the )?(?:efficacy|effectiveness|absorption)|\btoxicity\b|\binhibit|\binduc|\b(?:may|can|could|might) interact/;
+// words like "fatal" or "death" describe how bad a risk is; only explicit instructions (avoid, contraindicated) raise the level
+const C = /\bmonitor|life[- ]threatening|\bfatal\b|\bdeaths?\b|\bprofound sedation|\bdos(?:e|age|ing) (?:adjustment|reduction|modification|titration|decrease|increase)|\b(?:reduce|adjust|decrease|increase|lower|limit|halve) (?:the )?(?:\w+ )?dos(?:e|age|ing)|\bconsider\b|\bcaution|\bseparate\b|\b(?:hours?|hrs?) (?:before|after|apart)|\btitrat|\bclosely\b|\bmay (?:increase|decrease|enhance|reduce|potentiate|result|cause|lead|alter|prolong|lower|raise|diminish)|\b(?:increase|decrease|raise|lower)(?:s|d)? (?:the )?(?:risk|exposure|concentrations?|levels?|plasma|serum|auc|cmax|effects?|efficacy|bioavailability|absorption|clearance)|\bpotentiat|\badditive\b|\benhance|\breduced? (?:the )?(?:efficacy|effectiveness|absorption)|\btoxicity\b|\binhibit|\binduc|\b(?:may|can|could|might) interact/;
 const LEVEL = /\b(increase|decrease|reduce|raise|lower|elevat)(?:s|d|ion|ing)?\b[^.;]{0,40}?\b(?:exposure|concentrations?|levels?|auc|cmax|bioavailability)\b[^.;]{0,15}?\b(?:of|to|for|in)\s+([^.;,]{2,60})/g;
 
 type Hit = { id: string; c: number };
@@ -55,7 +58,7 @@ function entities(sentence: string, self: Set<string>): Hit[] {
   const hits: Hit[] = [];
   for (const [id, k] of class_entries) {
     // "systemic corticosteroid effects" or "the anticoagulant effect of warfarin" describe an effect, not a partner drug
-    const all = new RegExp(`(?:${k.p.source})(\\s+(?:effects?|activity|actions?|properties|adverse|side|syndrome|toxicity|withdrawal|exposure|naive|therapy-related)\\b)?`, 'g');
+    const all = new RegExp(`(?:${k.p.source})(\\s+(?:effects?|activity|actions?|properties|adverse|side|syndrome|toxicity|withdrawal|exposure|naive|therapy-related|responses?|response)\\b)?`, 'g');
     for (const t of [text, text.replace(/-/g, ' ')]) {
       const found = [...t.matchAll(all)];
       if (!found.length) continue;
@@ -106,7 +109,7 @@ const id = (i: string) => names.get(norm(i)) ?? norm(i);
 // is not about its acetaminophen, but Paxlovid's label is the only one for nirmatrelvir
 const single = new Set(all.filter(l => l.i.length === 1).map(l => id(l.i[0])));
 for (const l of all) {
-  if (l.i.length > 6) continue;
+  if (l.i.length > 6 || l.i.some((i: string) => /allergenic|extract|pollen|venom|\bmite\b|antigen|diagnostic|tuberculin/.test(i))) continue;  // skin-test instructions are not interactions
   const self = new Set<string>(l.i.map(id));
   const speaks_for = l.i.length === 1 ? [...self] : [...self].filter(s => !single.has(s));
   if (!speaks_for.length) continue;
@@ -121,7 +124,9 @@ for (const l of all) {
       const together = TOGETHER.test(low);
       if (!section.startsWith('drug_interactions') && !OTC_LEVEL[section] && !together) continue;
       if (ALLERGY.test(low) && !together) continue;
-      const hits = entities(q, self).filter(h => !h.c || !self_in_class(self, h.id) || OTHER.test(low));
+      let hits = entities(q, self).filter(h => !h.c || !self_in_class(self, h.id) || OTHER.test(low));
+      // "Sedative/hypnotics: orally administered midazolam, triazolam" names the members it means; "(e.g., ketoconazole)" only gives examples
+      if (!EXAMPLES.test(low)) hits = hits.filter(h => !h.c || !hits.some(d => !d.c && members_of(h.id).has(d.id)));
       if (!hits.length) continue;
       let s = X.test(low) ? 'x' : A.test(low) ? 'a' : N.test(low) ? 'n' : C.test(low) ? 'c' : OTC_LEVEL[section] ?? '';
       if (!s) continue;

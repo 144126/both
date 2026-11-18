@@ -30,7 +30,7 @@
 
 	<h2 class="mt-12 text-2xl font-bold">how good is it</h2>
 	<p class="mt-4">
-		we measure ourselves against DDInter 2.0, a large academic database we do not copy from. both flags 75% of the pairs DDInter rates major and 49% of
+		we measure ourselves against DDInter 2.0, a large academic database we do not copy from. both flags 74% of the pairs DDInter rates major and 48% of
 		those it rates moderate; DDInter in turn misses many pairs the national agencies list. no database is complete. the data has not yet been reviewed
 		by an independent pharmacist panel, translations from Norwegian, Danish and French are made by machine, and the rules that read labels can misread a
 		sentence. every finding links to its source so you can check it.
