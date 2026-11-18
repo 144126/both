@@ -23,6 +23,7 @@
 	let query = $state('');
 	let findings = $state<Finding[]>([]);
 	let unknown = $state<Medicine[]>([]);
+	let incomplete = $state<Medicine[]>([]);
 	let busy = $state(false);
 	let failed = $state(false);
 
@@ -64,6 +65,7 @@
 			if (list !== meds) return;
 			findings = r.findings;
 			unknown = r.unknown;
+			incomplete = r.failed;
 			busy = false;
 		});
 	});
@@ -135,6 +137,12 @@
 	{:else if busy && !findings.length}
 		<p class="text-base text-quiet">checking…</p>
 	{:else}
+		{#if incomplete.length}
+			<p class="chamfer mb-8 bg-x-bg p-5 text-base text-x-fg">
+				<strong>this check is incomplete.</strong> we couldn't load the data for {incomplete.map(m => m.t).join(', ')}. check your connection and
+				<button type="button" class="underline underline-offset-4" onclick={() => (value = [...value])}>try again</button>.
+			</p>
+		{/if}
 		<h2 class="text-2xl font-bold">
 			{findings.filter(f => f.s !== 'n').length
 				? `${findings.filter(f => f.s !== 'n').length} ${findings.filter(f => f.s !== 'n').length === 1 ? 'thing' : 'things'} to know`

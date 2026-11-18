@@ -23,22 +23,38 @@ export const ADVICE: Record<string, string> = {
   n: 'studies found no meaningful interaction between these two.',
 };
 
-let index: Promise<Index> | undefined;
-export const load_index = () => (index ??= fetch('/api/v1/index.json').then(r => r.json()));
-
-const drugs = new Map<number, Promise<Drug & { map: Map<number, Drug['p'][number]> }>>();
-export function load_drug(ix: Index, n: number) {
-  if (!drugs.has(n)) drugs.set(n, fetch(`/api/v1/drug/${ix.c[n][1]}.json`).then(r => r.json()).then((d: Drug) => ({ ...d, map: new Map(d.p.map(p => [p[0], p])) })));
-  return drugs.get(n)!;
+/** JSON with two retries; a failure is never cached, so the next check tries again. */
+async function get<T>(url: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return await r.json();
+      if (attempt >= 2) throw new Error(`${r.status} ${url}`);
+    } catch (e) {
+      if (attempt >= 2) throw e;
+    }
+    await new Promise(done => setTimeout(done, 400 * (attempt + 1)));
+  }
 }
+const cached = <T>(map: Map<string | number, Promise<T>>, key: string | number, url: string) => {
+  if (!map.has(key)) map.set(key, get<T>(url).catch(e => { map.delete(key); throw e; }));
+  return map.get(key)!;
+};
 
-const chunks = new Map<number, Promise<Text[]>>();
+const indexes = new Map<string, Promise<Index>>();
+export const load_index = () => cached(indexes, 'index', '/api/v1/index.json');
+
+const drugs = new Map<string | number, Promise<Drug>>();
+const maps = new WeakMap<Drug, Map<number, Drug['p'][number]>>();
+export const load_drug = (ix: Index, n: number) => cached(drugs, n, `/api/v1/drug/${ix.c[n][1]}.json`);
+const partners = (d: Drug) => maps.get(d) ?? (maps.set(d, new Map(d.p.map(p => [p[0], p]))), maps.get(d)!);
+
+const chunks = new Map<string | number, Promise<Text[]>>();
 /** Text and patient text of evidence, from the shared text files (200 per file). */
 export async function load_texts(ids: number[]): Promise<Map<number, Text>> {
   const out = new Map<number, Text>();
   await Promise.all([...new Set(ids.map(i => Math.floor(i / 200)))].map(async k => {
-    if (!chunks.has(k)) chunks.set(k, fetch(`/api/v1/text/${k}.json`).then(r => r.json()));
-    const rows = await chunks.get(k)!;
+    const rows = await cached(chunks, k, `/api/v1/text/${k}.json`);
     for (const i of ids) if (Math.floor(i / 200) === k) out.set(i, rows[i % 200]);
   }));
   return out;
@@ -85,19 +101,21 @@ export function search(ix: Index, query: string, limit = 12): Match[] {
 }
 
 /** Every pair of ingredients from two different medicines, with what the data says about it; the same ingredient twice is a finding too. */
-export async function check(ix: Index, meds: Medicine[]): Promise<{ findings: Finding[]; unknown: Medicine[] }> {
+// unknown: medicines with no interaction data at all; failed: data that could not be loaded, so the result is incomplete
+export async function check(ix: Index, meds: Medicine[]): Promise<{ findings: Finding[]; unknown: Medicine[]; failed: Medicine[] }> {
   const ids = [...new Set(meds.flatMap(m => m.ids))];
-  const loaded = new Map(await Promise.all(ids.map(async n => [n, ix.c[n][1] ? await load_drug(ix, n).catch(() => null) : null] as const)));
+  const broken = new Set<number>();
+  const loaded = new Map(await Promise.all(ids.map(async n => [n, ix.c[n][1] ? await load_drug(ix, n).catch(() => (broken.add(n), null)) : null] as const)));
   const findings: Finding[] = [];
   for (let i = 0; i < meds.length; i++) for (let j = i + 1; j < meds.length; j++) {
     for (const x of meds[i].ids) for (const y of meds[j].ids) {
       if (x === y) { findings.push({ a: meds[i], b: meds[j], x, y, s: 'a', r: [], ev: [], same: true }); continue; }
-      const d = loaded.get(x), hit = d?.map.get(y);
+      const d = loaded.get(x), hit = d && partners(d).get(y);
       if (hit) findings.push({ a: meds[i], b: meds[j], x, y, s: hit[1], r: hit[2].split(','), ev: hit[3].map(e => d!.v[e]) });
     }
   }
   findings.sort((p, q) => ORDER.indexOf(p.s) - ORDER.indexOf(q.s));
-  return { findings, unknown: meds.filter(m => m.ids.every(n => !loaded.get(n))) };
+  return { findings, unknown: meds.filter(m => m.ids.every(n => !ix.c[n][1])), failed: meds.filter(m => m.ids.some(n => broken.has(n))) };
 }
 
 /** Plain words for what can happen: the effects the sources name, and whose blood level goes up or down. */
