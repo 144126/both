@@ -8,7 +8,7 @@ Interaction databases that clinics and pharmacies rely on cost tens of thousands
 
 ## What's in it
 
-About 554,000 interacting ingredient pairs over 6,750 ingredients (3,400 with known interactions), each with a severity, what happens, and the evidence behind it.
+About 552,000 interacting ingredient pairs over 6,750 ingredients (3,400 with known interactions), each with a severity, what happens, and the evidence behind it.
 
 | Source | What it adds | Licence |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ Each source's own words are kept next to ours. The most cautious documented rati
 
 ## Accuracy
 
-Measured against DDInter 2.0 (used only as a yardstick, none of its data is included): both flags 74% of DDInter’s major pairs and 48% of its moderate pairs, and lists many pairs DDInter lacks. Known limits: no independent pharmacist review yet; label sentences are read by rules that can misread; machine translation; no dose, route or age logic yet.
+Measured against DDInter 2.0 (used only as a yardstick, none of its data is included): both flags 73% of DDInter’s major pairs and 48% of its moderate pairs, and lists many pairs DDInter lacks. Known limits: no independent pharmacist review yet; label sentences are read by rules that can misread; machine translation; no dose, route or age logic yet.
 
 ## API
 
