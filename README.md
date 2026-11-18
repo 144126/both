@@ -52,6 +52,7 @@ node pipeline/labels.ts      # stream all FDA labels (1.8 GB, nothing raw kept)
 node pipeline/fda_pk.ts      # FDA enzyme table
 node pipeline/fest.ts && node pipeline/dk.ts && node pipeline/ansm.ts && node pipeline/ndfrt.ts
 # translate (see pipeline/translate.py), then:
+node pipeline/repair.ts    # put back drug names the translator garbled
 node pipeline/vocab.ts && node pipeline/extract.ts && node pipeline/mechanism.ts && node pipeline/build.ts
 node pipeline/evaluate.ts    # recall against DDInter
 node pipeline/site.ts && cd site && pnpm build

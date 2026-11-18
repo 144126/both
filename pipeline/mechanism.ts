@@ -9,8 +9,8 @@ import { concept, members, resolve, roles_of, vocab } from './resolve.ts';
 // Risks a label warns about in its boxed warning or warnings sections, as the drug's own property
 const RISKS: Record<string, RegExp> = {
   qt: /qtc? (?:interval )?prolongation|prolongs? (?:the )?qtc?|torsades? de pointes/,
-  liver: /hepatotoxicity|hepatic failure|liver failure|drug-induced liver injury|severe liver injury|hepatic injury/,
-  kidney: /nephrotoxicity|acute kidney injury|renal failure|renal toxicity/,
+  liver: /hepatotoxicity|drug-induced liver injury|severe liver injury|(?:cause|caused|causing|reports? of) (?:acute )?(?:liver|hepatic) failure|fulminant hepat/,
+  kidney: /nephrotoxicity|renal toxicity|(?:cause|caused|causing|risk of|reports? of) acute (?:kidney injury|renal failure)/,
   marrow: /myelosuppression|bone marrow suppression|agranulocytosis|neutropenia|pancytopenia/,
   sugar_low: /hypoglyc[ae]mia/,
   slow_heart: /bradycardia|bradyarrhythmia|heart block|atrioventricular block/,
