@@ -8,7 +8,7 @@ Interaction databases that clinics and pharmacies rely on cost tens of thousands
 
 ## What's in it
 
-About 568,000 interacting ingredient pairs over 6,750 ingredients (3,400 with known interactions), each with a severity, what happens, and the evidence behind it.
+About 554,000 interacting ingredient pairs over 6,750 ingredients (3,400 with known interactions), each with a severity, what happens, and the evidence behind it.
 
 | Source | What it adds | Licence |
 | --- | --- | --- |

@@ -140,7 +140,11 @@ for (const l of all) {
         const b = h.c ? `class:${h.id}` : h.id, key = `${b}|${s}|${q}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        findings.push({ a: speaks_for, b, s, f, u: up, d: down, q: q.slice(0, 600), k: section, i: l.s, t: l.b[0] ?? l.n[0] ?? l.i.join(' / '), r: l.r });
+        // a combination label's sentence speaks for an ingredient without its own label only when it names it ("hydrocodone and
+        // homatropine" warnings are about the opioid); a single-ingredient label always speaks for its drug
+        const named = l.i.length === 1 ? speaks_for : speaks_for.filter(x => low.includes(x));
+        if (!named.length) continue;
+        findings.push({ a: named, b, s, f, u: up, d: down, q: q.slice(0, 600), k: section, i: l.s, t: l.b[0] ?? l.n[0] ?? l.i.join(' / '), r: l.r });
       }
     }
   }
