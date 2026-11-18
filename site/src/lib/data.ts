@@ -1,6 +1,7 @@
 // Searches medicine names and works out what happens when medicines are taken together, entirely on the device: the data is
 // downloaded once (install) and read from the browser's cache from then on.
 import { BASE, FILES, PAIRS, TEXT_CHUNK, VERSION } from './bundle';
+import { embed, type Table } from './wordpiece';
 
 // i: version; c: concepts [name, slug]; t: terms [term, concept indexes...]; k: class names; s: sources {code: [name, url, licence]}; f: effects {code: words}; n: text files
 export type Index = { i: string; c: [string, string][]; t: (string | number)[][]; k: Record<string, string>; s: Record<string, [string, string, string]>; f: Record<string, string>; n: number };
@@ -64,6 +65,13 @@ async function local(file: string): Promise<Response> {
   return r;
 }
 
+/** A local file's bytes, unpacked if gzip (some servers already unpack .gz on the way: gzip starts with 1f 8b). */
+async function bytes(file: string): Promise<ArrayBuffer> {
+  const buf = await (await local(file)).arrayBuffer();
+  const head = new Uint8Array(buf, 0, 2);
+  return head[0] === 0x1f && head[1] === 0x8b ? new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer() : buf;
+}
+
 let index: Promise<Index> | undefined;
 export const load_index = () => (index ??= local('index.json').then(r => r.json()));
 
@@ -71,10 +79,7 @@ export const load_index = () => (index ??= local('index.json').then(r => r.json(
 type Pairs = { a: Uint16Array; b: Uint16Array; s: Uint8Array; r: Uint16Array; start: Uint32Array; count: Uint8Array; refs: Uint16Array; at: Uint32Array; list: Uint32Array };
 let pairs: Promise<Pairs> | undefined;
 const load_pairs = () => (pairs ??= (async () => {
-  // some servers send .gz with Content-Encoding: gzip and the browser has already unpacked it; gzip starts with 1f 8b
-  let buf = await (await local('pairs.bin.gz')).arrayBuffer();
-  const head = new Uint8Array(buf, 0, 2);
-  if (head[0] === 0x1f && head[1] === 0x8b) buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  const buf = await bytes('pairs.bin.gz');
   const [n, m] = new Uint32Array(buf, 0, 2);
   if (n !== PAIRS) throw new Error('pairs file does not match this version');
   let o = 8;
@@ -127,6 +132,34 @@ export async function load_texts(_ix: Index, ids: number[]): Promise<Map<number,
     for (const i of ids) if (Math.floor(i / TEXT_CHUNK) === k) out.set(i, rows[i % TEXT_CHUNK]);
   }));
   return out;
+}
+
+// Meaning search: blink-8M int8 static embeddings and one vector per drug (see pipeline/meaning.ts for the layout)
+type Meaning = { table: Table; ids: Uint16Array; ts: Float32Array; tq: Int8Array; w: Uint8Array };
+let meaning: Promise<Meaning> | undefined;
+export const load_meaning = () => (meaning ??= (async () => {
+  const [buf, words] = await Promise.all([bytes('meaning.bin.gz'), local('vocab.txt').then(r => r.text())]);
+  const [rows, dim, T] = new Uint32Array(buf, 0, 3);
+  let o = 16;
+  const s = new Float32Array(buf, o, rows); o += rows * 4;
+  const ts = new Float32Array(buf, o, T); o += T * 4;
+  const ids = new Uint16Array(buf, o, T); o += T * 2 + (T % 2 ? 2 : 0);
+  const q = new Int8Array(buf, o, rows * dim); o += rows * dim;
+  const tq = new Int8Array(buf, o, T * dim); o += T * dim;
+  return { table: { vocab: new Map(words.split('\n').map((t, i) => [t, i])), q, s, dim }, ids, ts, tq, w: new Uint8Array(buf, o, T) };
+})());
+
+/** Drugs whose description matches what was typed in meaning ("blood thinner" -> warfarin), common drugs first among close matches.
+ * Scores under 0.55 are noise (gibberish scores about 0.45). */
+export function search_meaning(m: Meaning, query: string, skip: Set<number>, limit = 5): number[] {
+  const v = embed(query, m.table), dim = m.table.dim, out: [number, number][] = [];
+  for (let r = 0; r < m.ids.length; r++) {
+    let d = 0;
+    for (let k = 0; k < dim; k++) d += v[k] * m.tq[r * dim + k];
+    const score = d * m.ts[r] + (0.3 * m.w[r]) / 255;
+    if (score >= 0.55 && !skip.has(m.ids[r])) out.push([score, m.ids[r]]);
+  }
+  return out.sort((a, b) => b[0] - a[0]).slice(0, limit).map(([, id]) => id);
 }
 
 export const plain = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();

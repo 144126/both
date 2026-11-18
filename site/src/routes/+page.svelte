@@ -7,13 +7,15 @@
 		ComboboxChips,
 		ComboboxContent,
 		ComboboxEmpty,
+		ComboboxGroup,
+		ComboboxGroupLabel,
 		ComboboxInput,
 		ComboboxItem,
 		ComboboxLabel,
 		ComboboxList,
 		ComboboxValue
 	} from '@ui-sdk/svelte/combobox';
-	import { check, load_index, plain, ready, search, ORDER, type Finding, type Index, type Medicine } from '#lib/data.ts';
+	import { check, load_index, load_meaning, plain, ready, search, search_meaning, ORDER, type Finding, type Index, type Medicine } from '#lib/data.ts';
 	import FindingCard from '#lib/FindingCard.svelte';
 	import Mark from '#lib/Mark.svelte';
 
@@ -27,7 +29,12 @@
 	let busy = $state(false);
 	let failed = $state(false);
 
+	let meaning = $state<Awaited<ReturnType<typeof load_meaning>> | null>(null);
 	const matches = $derived(ix && query ? search(ix, query) : []);
+	// by meaning only when names give little, and never mixed into the name matches: look-alike drug names must not slip in
+	const by_meaning = $derived(ix && meaning && query.trim().length >= 3 && matches.length < 3
+		? search_meaning(meaning, query, new Set(matches.flatMap(m => m.ids))).map(id => ({ value: ix!.c[id][0], hint: ((ix as Index & { m?: string[][] }).m?.[id] ?? []).slice(0, 2).map(k => ix!.k[k].replace(/ \(.*\)$/, '')).join(' · ') }))
+		: []);
 	const meds = $derived(value.map(t => ({ t, ids: terms.get(t) ?? [] })).filter(m => m.ids.length));
 	const counts = $derived(Object.fromEntries([...ORDER].map(s => [s, findings.filter(f => f.s === s).length])));
 	const EXAMPLES = [['warfarin', 'aspirin'], ['sertraline', 'tramadol'], ['simvastatin', 'clarithromycin'], ['tylenol', 'percocet']];
@@ -50,6 +57,7 @@
 		from_link();
 		addEventListener('hashchange', from_link);
 		ix = loaded;
+		meaning = await load_meaning().catch(() => null);
 	});
 
 	$effect(() => {
@@ -82,7 +90,7 @@
 
 	<div class="mt-10">
 		{#if failed}
-			<p class="chamfer bg-x-bg p-5 text-x-fg">the medicine data isn't on this device yet. connect to the internet once (about 5 MB), then reload: after that, both works with no connection.</p>
+			<p class="chamfer bg-x-bg p-5 text-x-fg">the medicine data isn't on this device yet. connect to the internet once (about 13 MB), then reload: after that, both works with no connection.</p>
 		{:else}
 			<Combobox multiple bind:value bind:query filter={false} itemToLabel={(t: string) => t} autoHighlight>
 				<ComboboxLabel class="text-base font-semibold">your medicines</ComboboxLabel>
@@ -107,7 +115,7 @@
 				<ComboboxContent class="{query.trim() ? '' : 'hidden'} chamfer-sm z-10 max-h-[min(24rem,var(--available-height))] w-[var(--anchor-width)] overflow-auto border-2 border-ink bg-paper py-2 shadow-xl">
 					<ComboboxEmpty class="px-4 py-3 text-base text-quiet">
 						{#snippet children(state)}
-							{#if state.empty && state.query}no medicine called “{state.query}”. check the spelling, or try the generic name.{/if}
+							{#if state.empty && state.query}no medicine called “{state.query}”. check the spelling, try the generic name, or describe it (like “blood thinner”).{/if}
 						{/snippet}
 					</ComboboxEmpty>
 					<ComboboxList>
@@ -117,6 +125,17 @@
 								{#if m.hint}<span class="text-sm opacity-80">{m.hint}</span>{/if}
 							</ComboboxItem>
 						{/each}
+						{#if by_meaning.length}
+							<ComboboxGroup>
+								<ComboboxGroupLabel class="px-4 pt-3 pb-1 text-sm font-semibold text-quiet">matching “{query.trim()}” by meaning: check the name before adding</ComboboxGroupLabel>
+								{#each by_meaning as m (m.value)}
+									<ComboboxItem value={m.value} label={m.value} class="flex min-h-11 cursor-pointer flex-col justify-center px-4 py-2 data-highlighted:bg-ink data-highlighted:text-paper">
+										<span class="text-base font-medium">{m.value}</span>
+										{#if m.hint}<span class="text-sm opacity-80">{m.hint}</span>{/if}
+									</ComboboxItem>
+								{/each}
+							</ComboboxGroup>
+						{/if}
 					</ComboboxList>
 				</ComboboxContent>
 			</Combobox>
