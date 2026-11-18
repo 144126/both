@@ -1,10 +1,19 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue } from '@ui-sdk/svelte/progress';
+	import { ready } from '#lib/data.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
+	let share = $state<number | null>(null);
+	onMount(() => {
+		// a first visit downloads the data; later visits find it on the device and show nothing
+		const shown = setTimeout(() => share ??= 0, 300);
+		ready(p => { if (p < 1) share = p; }).then(() => (share = null), () => (share = null)).finally(() => clearTimeout(shown));
+	});
 	const links = [
 		['/', 'check'],
 		['/data', 'data'],
@@ -35,6 +44,15 @@
 	</nav>
 </header>
 
+{#if share !== null}
+	<div class="mx-auto mt-6 max-w-5xl px-4 sm:px-8">
+		<Progress value={Math.round(share * 100)} class="chamfer-sm bg-soft p-4">
+			<div class="flex justify-between gap-4 text-base"><ProgressLabel>getting ready to work offline (one time)</ProgressLabel><ProgressValue class="tabular-nums" /></div>
+			<ProgressTrack class="mt-2 h-2 w-full bg-paper"><ProgressIndicator class="h-full bg-ink transition-[width]" /></ProgressTrack>
+		</Progress>
+	</div>
+{/if}
+
 <main id="main" class="mx-auto max-w-5xl px-4 pb-24 sm:px-8">
 	{@render children()}
 </main>
@@ -42,6 +60,6 @@
 <footer class="mx-auto max-w-5xl border-t-2 border-ink px-4 py-8 text-sm text-quiet sm:px-8">
 	<p class="max-w-[65ch]">
 		both helps you ask the right questions. it does not replace your doctor or pharmacist: never start, stop or change a medicine without asking them.
-		free and open data · runs in your browser, nothing you type leaves your device.
+		free and open data · works offline: everything runs on your device, and nothing you type leaves it.
 	</p>
 </footer>

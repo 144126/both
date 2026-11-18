@@ -13,7 +13,7 @@
 		ComboboxList,
 		ComboboxValue
 	} from '@ui-sdk/svelte/combobox';
-	import { check, load_index, plain, search, ORDER, type Finding, type Index, type Medicine } from '#lib/data.ts';
+	import { check, load_index, plain, ready, search, ORDER, type Finding, type Index, type Medicine } from '#lib/data.ts';
 	import FindingCard from '#lib/FindingCard.svelte';
 	import Mark from '#lib/Mark.svelte';
 
@@ -35,6 +35,7 @@
 	onMount(async () => {
 		let loaded: Index;
 		try {
+			await ready();
 			loaded = await load_index();
 		} catch {
 			failed = true;
@@ -81,7 +82,7 @@
 
 	<div class="mt-10">
 		{#if failed}
-			<p class="chamfer bg-x-bg p-5 text-x-fg">couldn't load the medicine list. check your connection and reload the page.</p>
+			<p class="chamfer bg-x-bg p-5 text-x-fg">the medicine data isn't on this device yet. connect to the internet once (about 5 MB), then reload: after that, both works with no connection.</p>
 		{:else}
 			<Combobox multiple bind:value bind:query filter={false} itemToLabel={(t: string) => t} autoHighlight>
 				<ComboboxLabel class="text-base font-semibold">your medicines</ComboboxLabel>

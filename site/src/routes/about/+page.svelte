@@ -30,14 +30,14 @@
 
 	<h2 class="mt-12 text-2xl font-bold">how good is it</h2>
 	<p class="mt-4">
-		we measure ourselves against DDInter 2.0, a large academic database we do not copy from. both flags 76% of the pairs DDInter rates major and 50% of
+		we measure ourselves against DDInter 2.0, a large academic database we do not copy from. both flags 75% of the pairs DDInter rates major and 49% of
 		those it rates moderate; DDInter in turn misses many pairs the national agencies list. no database is complete. the data has not yet been reviewed
 		by an independent pharmacist panel, translations from Norwegian, Danish and French are made by machine, and the rules that read labels can misread a
 		sentence. every finding links to its source so you can check it.
 	</p>
 
-	<h2 class="mt-12 text-2xl font-bold">privacy</h2>
-	<p class="mt-4">the checker runs in your browser. the medicines you type never leave your device, and there are no accounts, ads or trackers.</p>
+	<h2 class="mt-12 text-2xl font-bold">offline and private</h2>
+	<p class="mt-4">on your first visit both saves the app and all its data on your device (about 5 MB). after that it works with no internet at all, and every check runs on your device: the medicines you type never leave it. there are no accounts, ads or trackers.</p>
 
 	<h2 class="mt-12 text-2xl font-bold">not medical advice</h2>
 	<p class="mt-4">both helps you and your care team ask the right questions. it does not replace a doctor or pharmacist. never start, stop or change a medicine without asking them. in an emergency, call your local emergency number.</p>

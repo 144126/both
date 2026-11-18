@@ -1,29 +1,32 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/state';
-	import { load_drug, load_index, plain, ORDER, type Drug, type Finding, type Index } from '#lib/data.ts';
+	import { load_drug, load_index, plain, ready, ORDER, type Drug, type Finding, type Index } from '#lib/data.ts';
 	import FindingCard from '#lib/FindingCard.svelte';
 	import Mark from '#lib/Mark.svelte';
 
+	// one page for every drug (/drug?d=warfarin), so it is cached once and opens offline
 	let ix = $state<Index | null>(null);
 	let drug = $state<Drug | null>(null);
 	let me = $state(-1);
 	let filter = $state('');
 	let show = $state(30);
-	let failed = $state(false);
+	let failed = $state('');
 
 	onMount(async () => {
+		const slug = new URL(location.href).searchParams.get('d') ?? '';
 		try {
+			await ready();
 			const loaded = await load_index();
-			me = loaded.c.findIndex(([, slug]: [string, string]) => slug === page.params.slug);
+			me = loaded.c.findIndex(([, s]: [string, string]) => s === slug);
 			ix = loaded;
+			if (me < 0) return void (failed = `no medicine called “${slug}”.`);
 			drug = await load_drug(loaded, me);
 		} catch {
-			failed = true;
+			failed = "the medicine data isn't on this device yet. connect to the internet once, then reload.";
 		}
 	});
 
-	const name = $derived(ix && me >= 0 ? ix.c[me][0] : (page.params.slug ?? ''));
+	const name = $derived(ix && me >= 0 ? ix.c[me][0] : '');
 	const findings = $derived<Finding[]>(
 		ix && drug
 			? drug.p
@@ -34,13 +37,13 @@
 	const counts = $derived(drug ? Object.fromEntries([...ORDER].map(s => [s, drug!.p.filter(p => p[1] === s).length])) : {});
 </script>
 
-<svelte:head><title>{name} interactions · both</title></svelte:head>
+<svelte:head><title>{name ? `${name} interactions · both` : 'interactions · both'}</title></svelte:head>
 
 <section class="pt-14">
 	<p class="text-sm font-semibold tracking-wide text-quiet">interactions of</p>
-	<h1 class="mt-1 text-4xl font-bold tracking-tight">{name}</h1>
+	<h1 class="mt-1 text-4xl font-bold tracking-tight">{name || '…'}</h1>
 	{#if failed}
-		<p class="chamfer mt-6 bg-x-bg p-5 text-x-fg">couldn't load this medicine. check your connection and reload the page.</p>
+		<p class="chamfer mt-6 bg-x-bg p-5 text-x-fg">{failed}</p>
 	{:else if !drug}
 		<p class="mt-6 text-quiet">loading…</p>
 	{:else}

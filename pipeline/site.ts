@@ -11,6 +11,7 @@ import { EFFECTS } from './effects.ts';
 const pairs: [string, string, string, string, number[]][] = JSON.parse(readFileSync('data/out/pairs.json', 'utf8'));
 const evidence = JSON.parse(readFileSync('data/out/evidence.json', 'utf8'));
 const API = 'site/static/api/v1';
+const version = new Date().toISOString().slice(0, 16);  // minute stamp: two deploys a day must not share a version
 const cut = (t: string, n: number) => t.length > n ? `${t.slice(0, n).replace(/\s+\S*$/, '')}…` : t;
 rmSync(API, { recursive: true, force: true });
 mkdirSync(`${API}/drug`, { recursive: true });
@@ -37,18 +38,17 @@ for (const c of concepts) for (const s of [c.n, ...c.s]) term(s, [index.get(c.n)
 for (const [name, ids] of Object.entries(vocab.p)) term(name, ids.filter(id => index.has(id)).map(id => index.get(id)!));
 
 // i: version date; c: concepts [name, slug]; t: search terms [term, concept indexes...]; k: class names {id: plain name}; s: sources {code: [name, url, licence]};
-// f: effects {code: plain words}
-const version = new Date().toISOString().slice(0, 10);
+// f: effects {code: plain words}; n: number of text files (text/0.json … text/<n-1>.json)
 writeFileSync(`${API}/index.json`, JSON.stringify({ i: version, c: concepts.map((c, i) => [c.n, slug[i]]), t: [...terms].map(([t, ids]) => [t, ...ids]),
-  k: Object.fromEntries(Object.entries(CLASSES).map(([id, k]) => [id, k.n])), s: SOURCES, f: Object.fromEntries(Object.entries(EFFECTS).map(([k, e]) => [k, e.n])) }));
+  k: Object.fromEntries(Object.entries(CLASSES).map(([id, k]) => [id, k.n])), s: SOURCES, f: Object.fromEntries(Object.entries(EFFECTS).map(([k, e]) => [k, e.n])), n: Math.ceil(evidence.length / 200) }));
 
-// per ingredient: i id; a ATC; x RxNorm; u UNII; e FDA classes; k our classes; p interactions [partner index, severity, sources, evidence indexes];
+// per ingredient: w data version (must equal the index's i, or ids may point at other drugs); i id; a ATC; x RxNorm; u UNII; e FDA classes; k our classes; p interactions [partner index, severity, sources, evidence indexes];
 // v evidence [source, severity, source's words, via class, effects, raises, lowers, text id]. Texts are stored once, in
 // text/<id / 200>.json as [text, plain text, link, title], since one label sentence about a class backs thousands of pairs.
 const CHUNK = 200;
 mkdirSync(`${API}/text`, { recursive: true });
 for (let k = 0; k * CHUNK < evidence.length; k++)
-  writeFileSync(`${API}/text/${k}.json`, JSON.stringify(evidence.slice(k * CHUNK, (k + 1) * CHUNK).map((x: { t: string; p?: string; u: string; n: string }) => [cut(x.t, 900), x.p ?? '', x.u, x.n])));
+  writeFileSync(`${API}/text/${k}.json`, JSON.stringify({ w: version, r: evidence.slice(k * CHUNK, (k + 1) * CHUNK).map((x: { t: string; p?: string; u: string; n: string }) => [cut(x.t, 900), x.p ?? '', x.u, x.n]) }));
 const by_drug = new Map<string, [string, string, string, number[]][]>();
 for (const [a, b, s, r, ev] of pairs) {
   (by_drug.get(a) ?? by_drug.set(a, []).get(a)!).push([b, s, r, ev]);
@@ -68,7 +68,7 @@ for (const c of concepts) {
     }
     return local.get(e)!;
   };
-  const body = JSON.stringify({ i: c.n, a: c.a, x: c.x, u: c.u, e: c.e, k: class_of.get(c.n) ?? [], p: list.map(([b, s, r, ev]) => [index.get(b), s, r, ev.slice(0, 5).map(at)]), v });
+  const body = JSON.stringify({ w: version, i: c.n, a: c.a, x: c.x, u: c.u, e: c.e, k: class_of.get(c.n) ?? [], p: list.map(([b, s, r, ev]) => [index.get(b), s, r, ev.slice(0, 5).map(at)]), v });
   bytes += body.length;
   writeFileSync(`${API}/drug/${slug[index.get(c.n)!]}.json`, body);
 }

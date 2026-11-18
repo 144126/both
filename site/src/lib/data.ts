@@ -1,7 +1,9 @@
-// Loads the static API, searches medicine names and works out what happens when medicines are taken together. Runs in the browser.
+// Searches medicine names and works out what happens when medicines are taken together, entirely on the device: the data is
+// downloaded once (install) and read from the browser's cache from then on.
+import { BASE, FILES, PAIRS, TEXT_CHUNK, VERSION } from './bundle';
 
-// i: version; c: concepts [name, slug]; t: terms [term, concept indexes...]; k: class names; s: sources {code: [name, url, licence]}; f: effects {code: words}
-export type Index = { i: string; c: [string, string][]; t: (string | number)[][]; k: Record<string, string>; s: Record<string, [string, string, string]>; f: Record<string, string> };
+// i: version; c: concepts [name, slug]; t: terms [term, concept indexes...]; k: class names; s: sources {code: [name, url, licence]}; f: effects {code: words}; n: text files
+export type Index = { i: string; c: [string, string][]; t: (string | number)[][]; k: Record<string, string>; s: Record<string, [string, string, string]>; f: Record<string, string>; n: number };
 // source, severity, source's words, via class, effects, raises (concept indexes), lowers, text id
 export type Evidence = [string, string, string, string, string[], number[], number[], number];
 // text, patient text, link, title
@@ -23,39 +25,106 @@ export const ADVICE: Record<string, string> = {
   n: 'studies found no meaningful interaction between these two.',
 };
 
-/** JSON with two retries; a failure is never cached, so the next check tries again. */
-async function get<T>(url: string): Promise<T> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const r = await fetch(url);
-      if (r.ok) return await r.json();
-      if (attempt >= 2) throw new Error(`${r.status} ${url}`);
-    } catch (e) {
-      if (attempt >= 2) throw e;
+const CACHE = `both-${VERSION}`;
+
+/** Downloads the data once into the device's cache, reporting progress 0..1; later visits find it there and download nothing. */
+export async function install(progress: (share: number) => void) {
+  const cache = await caches.open(CACHE);
+  const have = new Set((await cache.keys()).map(r => new URL(r.url).pathname));
+  const missing = FILES.map(f => `${BASE}/${f}`).filter(u => !have.has(u));
+  let done = FILES.length - missing.length;
+  progress(done / FILES.length);
+  const queue = [...missing];
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    for (let url = queue.shift(); url; url = queue.shift()) {
+      for (let attempt = 0; ; attempt++) {
+        const r = await fetch(url).catch(() => null);
+        if (r?.ok) { await cache.put(url, r); break; }
+        if (attempt === 2) throw new Error(`could not download ${url}`);
+      }
+      progress(++done / FILES.length);
     }
-    await new Promise(done => setTimeout(done, 400 * (attempt + 1)));
-  }
+  }));
+  await navigator.storage?.persist?.();
+  for (const key of await caches.keys()) if (key.startsWith('both-2') && key !== CACHE) await caches.delete(key);
 }
-const cached = <T>(map: Map<string | number, Promise<T>>, key: string | number, url: string) => {
-  if (!map.has(key)) map.set(key, get<T>(url).catch(e => { map.delete(key); throw e; }));
-  return map.get(key)!;
-};
 
-const indexes = new Map<string, Promise<Index>>();
-export const load_index = () => cached(indexes, 'index', '/api/v1/index.json');
+let installing: Promise<void> | undefined;
+const listeners = new Set<(share: number) => void>();
+/** The data on this device, downloading it first if needed; every page waits on this one promise. */
+export function ready(progress?: (share: number) => void) {
+  if (progress) listeners.add(progress);
+  return (installing ??= install(share => listeners.forEach(l => l(share))).catch(e => { installing = undefined; throw e; }));
+}
 
-const drugs = new Map<string | number, Promise<Drug>>();
+/** A data file from the device only; never the network. */
+async function local(file: string): Promise<Response> {
+  const r = await (await caches.open(CACHE)).match(`${BASE}/${file}`);
+  if (!r) throw new Error(`not on this device: ${file}`);
+  return r;
+}
+
+let index: Promise<Index> | undefined;
+export const load_index = () => (index ??= local('index.json').then(r => r.json()));
+
+// pairs as typed arrays, and for each drug the pairs it is in (a compressed sparse row list built once on load)
+type Pairs = { a: Uint16Array; b: Uint16Array; s: Uint8Array; r: Uint16Array; start: Uint32Array; count: Uint8Array; refs: Uint16Array; at: Uint32Array; list: Uint32Array };
+let pairs: Promise<Pairs> | undefined;
+const load_pairs = () => (pairs ??= (async () => {
+  // some servers send .gz with Content-Encoding: gzip and the browser has already unpacked it; gzip starts with 1f 8b
+  let buf = await (await local('pairs.bin.gz')).arrayBuffer();
+  const head = new Uint8Array(buf, 0, 2);
+  if (head[0] === 0x1f && head[1] === 0x8b) buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  const [n, m] = new Uint32Array(buf, 0, 2);
+  if (n !== PAIRS) throw new Error('pairs file does not match this version');
+  let o = 8;
+  const u16 = (len: number) => { const v = new Uint16Array(buf, o, len); o += len * 2; return v; };
+  const a = u16(n), b = u16(n), r = u16(n), refs = u16(m);
+  const s = new Uint8Array(buf, o, n), count = new Uint8Array(buf, o + n, n);
+  const start = new Uint32Array(n);
+  for (let i = 1; i < n; i++) start[i] = start[i - 1] + count[i - 1];
+  let drugs = 0;
+  for (let i = 0; i < n; i++) drugs = Math.max(drugs, a[i], b[i]);
+  drugs += 2;
+  const at = new Uint32Array(drugs + 1);
+  for (let i = 0; i < n; i++) { at[a[i] + 1]++; at[b[i] + 1]++; }
+  for (let d = 0; d < drugs; d++) at[d + 1] += at[d];
+  const fill = at.slice(), list = new Uint32Array(2 * n);
+  for (let i = 0; i < n; i++) { list[fill[a[i]]++] = i; list[fill[b[i]]++] = i; }
+  return { a, b, s, r, start, count, refs, at, list };
+})());
+
+let evidence: Promise<[string, string, string, string, string[], number[], number[]][]> | undefined;
+const load_evidence = () => (evidence ??= local('evidence.json').then(r => r.json()));
+
+const drugs = new Map<number, Promise<Drug>>();
 const maps = new WeakMap<Drug, Map<number, Drug['p'][number]>>();
-export const load_drug = (ix: Index, n: number) => cached(drugs, n, `/api/v1/drug/${ix.c[n][1]}.json`);
+/** One drug's interactions, in the shape of /api/v1/drug/<slug>.json, built from the data on the device. */
+export function load_drug(ix: Index & { m?: string[][] }, n: number): Promise<Drug> {
+  if (!drugs.has(n)) drugs.set(n, Promise.all([load_pairs(), load_evidence()]).then(([P, E]) => {
+    const sources = Object.keys(ix.s), local_ids = new Map<number, number>(), v: Evidence[] = [];
+    const ref = (id: number) => local_ids.get(id) ?? (local_ids.set(id, v.push([...E[id], id] as Evidence) - 1), v.length - 1);
+    const p: Drug['p'] = [];
+    for (let k = P.at[n]; k < P.at[n + 1]; k++) {
+      const i = P.list[k];
+      const ev = Array.from(P.refs.subarray(P.start[i], P.start[i] + P.count[i]), ref);
+      p.push([P.a[i] === n ? P.b[i] : P.a[i], ORDER[P.s[i]], sources.filter((_, bit) => P.r[i] & (1 << bit)).join(','), ev]);
+    }
+    p.sort((x, y) => ORDER.indexOf(x[1]) - ORDER.indexOf(y[1]));
+    return { i: ix.c[n][0], a: [], x: [], u: [], e: [], k: ix.m?.[n] ?? [], p, v };
+  }));
+  return drugs.get(n)!;
+}
 const partners = (d: Drug) => maps.get(d) ?? (maps.set(d, new Map(d.p.map(p => [p[0], p]))), maps.get(d)!);
 
-const chunks = new Map<string | number, Promise<Text[]>>();
-/** Text and patient text of evidence, from the shared text files (200 per file). */
-export async function load_texts(ids: number[]): Promise<Map<number, Text>> {
+const chunks = new Map<number, Promise<Text[]>>();
+/** Text, patient text, link and title of evidence, from the text files on the device. */
+export async function load_texts(_ix: Index, ids: number[]): Promise<Map<number, Text>> {
   const out = new Map<number, Text>();
-  await Promise.all([...new Set(ids.map(i => Math.floor(i / 200)))].map(async k => {
-    const rows = await cached(chunks, k, `/api/v1/text/${k}.json`);
-    for (const i of ids) if (Math.floor(i / 200) === k) out.set(i, rows[i % 200]);
+  await Promise.all([...new Set(ids.map(i => Math.floor(i / TEXT_CHUNK)))].map(async k => {
+    if (!chunks.has(k)) chunks.set(k, local(`text/${k}.json`).then(r => r.json()));
+    const rows = await chunks.get(k)!;
+    for (const i of ids) if (Math.floor(i / TEXT_CHUNK) === k) out.set(i, rows[i % TEXT_CHUNK]);
   }));
   return out;
 }

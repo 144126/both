@@ -15,7 +15,7 @@
 	const happens = $derived(what_happens(ix, f));
 	let texts = $state(new Map<number, Text>());
 	$effect(() => {
-		load_texts(f.ev.map(e => e[7])).then(t => (texts = t));
+		load_texts(ix, f.ev.map(e => e[7])).then(t => (texts = t));
 	});
 	const plain_words = $derived(f.ev.map(e => texts.get(e[7])?.[1]).find(Boolean) ?? '');
 	const LANG: Record<string, string> = { no: 'norwegian', dk: 'danish', fr: 'french' };

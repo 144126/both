@@ -31,11 +31,15 @@ Each source's own words are kept next to ours. The most cautious documented rati
 
 ## Accuracy
 
-Measured against DDInter 2.0 (used only as a yardstick, none of its data is included): both flags 76% of DDInter's major pairs and 50% of its moderate pairs, and lists many pairs DDInter lacks. Known limits: no independent pharmacist review yet; label sentences are read by rules that can misread; machine translation; no dose, route or age logic yet.
+Measured against DDInter 2.0 (used only as a yardstick, none of its data is included): both flags 75% of DDInter’s major pairs and 49% of its moderate pairs, and lists many pairs DDInter lacks. Known limits: no independent pharmacist review yet; label sentences are read by rules that can misread; machine translation; no dose, route or age logic yet.
 
 ## API
 
-Static JSON, no key, no limits:
+The checker itself is fully offline: the first visit stores the app and a ~5 MB data bundle (`site/static/app/<version>/`) on the device, and every check after that runs locally with no network.
+
+The whole dataset is also one SQLite/Turso database, `/download/both.db.gz` (open it with Turso, sqlite3 or any SQLite library).
+
+The public API is static JSON, no key, no limits:
 
 - `GET /api/v1/index.json`: ingredients, search names (brands, other languages), classes, sources.
 - `GET /api/v1/drug/<slug>.json`: one ingredient's interactions with evidence references.
@@ -55,7 +59,7 @@ node pipeline/fest.ts && node pipeline/dk.ts && node pipeline/ansm.ts && node pi
 node pipeline/repair.ts    # put back drug names the translator garbled
 node pipeline/vocab.ts && node pipeline/extract.ts && node pipeline/mechanism.ts && node pipeline/build.ts
 node pipeline/evaluate.ts    # recall against DDInter
-node pipeline/site.ts && cd site && pnpm build
+node pipeline/site.ts && node pipeline/db.ts && node pipeline/bundle.ts && cd site && pnpm build
 ```
 
 ## Licence
