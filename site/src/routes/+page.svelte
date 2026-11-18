@@ -33,7 +33,7 @@
 	const matches = $derived(ix && query ? search(ix, query) : []);
 	// by meaning only when names give little, and never mixed into the name matches: look-alike drug names must not slip in
 	const by_meaning = $derived(ix && meaning && query.trim().length >= 3 && matches.length < 3
-		? search_meaning(meaning, query, new Set(matches.flatMap(m => m.ids))).map(id => ({ value: ix!.c[id][0], hint: ((ix as Index & { m?: string[][] }).m?.[id] ?? []).slice(0, 2).map(k => ix!.k[k].replace(/ \(.*\)$/, '')).join(' · ') }))
+		? search_meaning(meaning, query, new Set(matches.flatMap(m => m.ids))).map(id => ({ value: ix!.c[id][0], hint: ((ix as Index & { m?: string[][] }).m?.[id] ?? []).filter(k => !/^\d|^(pgp|oatp|bcrp|cyp3a_pgp)/i.test(k)).slice(0, 2).map(k => ix!.k[k].replace(/ \(.*\)$/, '')).join(' · ') }))
 		: []);
 	const meds = $derived(value.map(t => ({ t, ids: terms.get(t) ?? [] })).filter(m => m.ids.length));
 	const counts = $derived(Object.fromEntries([...ORDER].map(s => [s, findings.filter(f => f.s === s).length])));
