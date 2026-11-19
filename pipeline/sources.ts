@@ -3,6 +3,7 @@ import { ANSM_URL_TEXT } from './curated.ts';
 // Sources: r code -> [name, url, licence]
 export const SOURCES: Record<string, [string, string, string]> = {
   us: ['US FDA drug labels (DailyMed / openFDA)', 'https://open.fda.gov/data/downloads/', 'public domain'],
+  eu: ['European Medicines Agency product information (SmPC section 4.5)', 'https://www.ema.europa.eu/en/medicines', 'reuse with acknowledgement'],
   no: ['Norwegian Medical Products Agency, FEST interaction database', 'https://www.dmp.no/en/about-us/distribution-of-data-on-medicinal-products/electronic-prescription-support-system-fest', 'NLOD 2.0'],
   dk: ['Danish Medicines Agency, interaction database', 'https://laegemiddelstyrelsen.dk/en/sideeffects/danish-drug-interaction-databases/', 'public, attribution'],
   fr: ['ANSM (France) thesaurus of drug interactions, September 2023', ANSM_URL_TEXT, 'public information, attribution'],

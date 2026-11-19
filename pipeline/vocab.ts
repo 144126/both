@@ -1,7 +1,7 @@
 // One vocabulary of ingredients for every source: US labels, the FDA enzyme table, Norway, France, VA and Wikidata.
 // Concept id = US (USAN) ingredient name without salt. Foreign spellings join by ATC code or by spelling skeleton.
 // Usage: node pipeline/vocab.ts -> data/vocab.json
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { base, plain, skeleton, US_NAME } from './names.ts';
 
@@ -84,6 +84,14 @@ for (const r of json('data/sources/fest.json')) for (const side of r.g) for (con
   if (atc.length !== 7) continue;  // class rows (C03, C03CA) list their members separately
   if (en) add_foreign(no, atc, en);
   else for (const part of no.split(/\s+og\s+|,\s*/).filter(p => !/kombinasjon|midler|derivater|usammensatte|andre|psykoleptika/i.test(p))) { const e = register.get(plain(part)); e ? add_foreign(part, '', e) : add_foreign(part); }
+}
+
+// EU: active substances of every EMA-authorised medicine, with their ATC code
+if (existsSync('data/cache/ema.jsonl')) for (const line of readFileSync('data/cache/ema.jsonl', 'utf8').split('\n')) {
+  if (!line) continue;
+  const e = JSON.parse(line), parts = String(e.i).toLowerCase().split(/\s*(?:,|\/|;|\band\b)\s*/).filter(Boolean);
+  for (const part of parts) add_foreign(part, parts.length === 1 && /^[A-Z]\d\d[A-Z]{2}\d\d$/.test(e.a) ? e.a : '');
+  product(e.n, parts.map(id_of));
 }
 
 // France: drug headings, partners and class members are French names

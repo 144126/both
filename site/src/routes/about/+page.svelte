@@ -11,6 +11,7 @@
 	<h2 class="mt-12 text-2xl font-bold">where the data comes from</h2>
 	<ul class="mt-4 list-disc space-y-3 pl-6">
 		<li><strong>US FDA drug labels.</strong> every prescription and over-the-counter label's interaction, contraindication and warning sections, read sentence by sentence.</li>
+		<li><strong>European Medicines Agency product information:</strong> the interaction section of every EU-authorised medicine.</li>
 		<li><strong>Norway's national interaction database</strong> (Norwegian Medical Products Agency, FEST), with clinical consequence, mechanism, handling and evidence grade.</li>
 		<li><strong>Denmark's interaction database</strong> (Danish Medicines Agency), professional and patient versions.</li>
 		<li><strong>France's interaction thesaurus</strong> (ANSM), with four levels from contraindicated to take into account.</li>
@@ -30,7 +31,7 @@
 
 	<h2 class="mt-12 text-2xl font-bold">how good is it</h2>
 	<p class="mt-4">
-		we measure ourselves against DDInter 2.0, a large academic database we do not copy from. both flags 73% of the pairs DDInter rates major and 48% of
+		we measure ourselves against DDInter 2.0, a large academic database we do not copy from. both flags 74% of the pairs DDInter rates major and 49% of
 		those it rates moderate; DDInter in turn misses many pairs the national agencies list. no database is complete. the data has not yet been reviewed
 		by an independent pharmacist panel, translations from Norwegian, Danish and French are made by machine, and the rules that read labels can misread a
 		sentence. every finding links to its source so you can check it.

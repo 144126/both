@@ -8,11 +8,12 @@ Interaction databases that clinics and pharmacies rely on cost tens of thousands
 
 ## What's in it
 
-About 552,000 interacting ingredient pairs over 6,750 ingredients (3,400 with known interactions), each with a severity, what happens, and the evidence behind it.
+About 576,000 interacting ingredient pairs over 6,750 ingredients (3,400 with known interactions), each with a severity, what happens, and the evidence behind it.
 
 | Source | What it adds | Licence |
 | --- | --- | --- |
 | US FDA drug labels (openFDA, DailyMed) | every Rx and OTC label's interaction, contraindication and warning sentences | public domain |
+| European Medicines Agency product information (SmPC 4.5) | 1,553 EU medicines' interaction sections, read like the US labels | reuse with acknowledgement |
 | Norwegian Medical Products Agency, FEST | 11,000 graded interactions with consequence, mechanism, handling, evidence level | NLOD 2.0 |
 | Danish Medicines Agency interaction database | 7,600 interactions, professional and patient texts | public sector information |
 | ANSM (France) thesaurus, Sept 2023 | 3,100 entries, four levels, drug classes | public information |
@@ -31,7 +32,7 @@ Each source's own words are kept next to ours. The most cautious documented rati
 
 ## Accuracy
 
-Measured against DDInter 2.0 (used only as a yardstick, none of its data is included): both flags 73% of DDInter’s major pairs and 48% of its moderate pairs, and lists many pairs DDInter lacks. Known limits: no independent pharmacist review yet; label sentences are read by rules that can misread; machine translation; no dose, route or age logic yet.
+Measured against DDInter 2.0 (used only as a yardstick, none of its data is included): both flags 74% of DDInter’s major pairs and 49% of its moderate pairs, and lists many pairs DDInter lacks. Known limits: no independent pharmacist review yet; label sentences are read by rules that can misread; machine translation; no dose, route or age logic yet.
 
 ## API
 

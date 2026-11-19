@@ -1,7 +1,7 @@
 // Interaction findings from US drug labels: every sentence of the interaction-related sections that names another drug or a drug class,
 // with its severity cue, effects and which drug's level changes. Deterministic; each finding keeps its sentence as evidence.
 // Usage: node pipeline/extract.ts -> data/sources/fda.json
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { CLASSES } from './classes.ts';
 import { plain } from './names.ts';
@@ -46,7 +46,7 @@ const SECTIONS = ['contraindications', 'boxed_warning', 'drug_interactions', 'dr
 const OTC_LEVEL: Record<string, string> = { do_not_use: 'x', ask_doctor_or_pharmacist: 'c', ask_doctor: 'c', when_using: 'c' };
 
 const X = /\bcontraindicated\b|\bmust not be (?:used|given|coadministered|co-administered|administered|taken)|\bdo not (?:coadminister|co-administer|use|take|administer|give|prescribe|initiate|start)\b[^.]{0,80}\b(?:with|in patients (?:taking|receiving|treated|on))\b/;
-const A = /\bavoid(?:ed|ance)?\b|\bnot recommended\b|\bshould not be (?:used|given|coadministered|co-administered|administered|taken|combined|started|prescribed)|\bshould not (?:take|use|receive)|\bdo not (?:use|take)\b/;
+const A = /(?<!\bto |\bin order to )\bavoid(?:ed|ance)?\b|\bnot recommended\b|\bshould not be (?:used|given|coadministered|co-administered|administered|taken|combined|started|prescribed)|\bshould not (?:take|use|receive)|\bdo not (?:use|take)\b/;
 const N = /\bno (?:clinically |pharmacokinetically )?(?:significant|relevant|meaningful|important|apparent|notable|appreciable|substantial)\b|\bno dose (?:adjustment|modification|change)s?\b|\bnot (?:clinically |considered )?(?:significant|relevant|meaningful)|\bdid not (?:significantly |meaningfully |substantially |appreciably )?(?:affect|alter|change|increase|decrease|influence|impact|modify|inhibit|induce)|\bno (?:effect|impact) on\b|\b(?:was|were) not (?:significantly )?(?:affected|altered|changed)|\bno (?:pharmacokinetic |drug[- ]drug |clinically relevant |significant )?interactions?\b|\bdoes not (?:affect|alter|interact|inhibit|induce)|\bnot expected to (?:affect|alter|interact|cause)|\bminimal effect/;
 // words like "fatal" or "death" describe how bad a risk is; only explicit instructions (avoid, contraindicated) raise the level
 const C = /\bmonitor|life[- ]threatening|\bfatal\b|\bdeaths?\b|\bprofound sedation|\bdos(?:e|age|ing) (?:adjustment|reduction|modification|titration|decrease|increase)|\b(?:reduce|adjust|decrease|increase|lower|limit|halve) (?:the )?(?:\w+ )?dos(?:e|age|ing)|\bconsider\b|\bcaution|\bseparate\b|\b(?:hours?|hrs?) (?:before|after|apart)|\btitrat|\bclosely\b|\bmay (?:increase|decrease|enhance|reduce|potentiate|result|cause|lead|alter|prolong|lower|raise|diminish)|\b(?:increase|decrease|raise|lower)(?:s|d)? (?:the )?(?:risk|exposure|concentrations?|levels?|plasma|serum|auc|cmax|effects?|efficacy|bioavailability|absorption|clearance)|\bpotentiat|\badditive\b|\benhance|\breduced? (?:the )?(?:efficacy|effectiveness|absorption)|\btoxicity\b|\binhibit|\binduc|\b(?:may|can|could|might) interact/;
@@ -107,6 +107,12 @@ const sentences = (s: string) => s.replace(/\s+/g, ' ').split(OTC_HEADING).flatM
 const findings: Record<string, unknown>[] = [];
 let labels = 0;
 const all = gunzipSync(readFileSync(process.argv[2] ?? 'data/cache/labels.jsonl.gz')).toString().split('\n').filter(Boolean).map(l => JSON.parse(l));
+// EU product information (pipeline/ema.ts): section 4.5 read like a US label's interaction section, credited to the EMA
+if (existsSync('data/cache/ema.jsonl')) for (const line of readFileSync('data/cache/ema.jsonl', 'utf8').split('\n')) {
+  if (!line) continue;
+  const e = JSON.parse(line);
+  if (e.t) all.push({ i: String(e.i).toLowerCase().split(/\s*(?:,|\/|;|\band\b)\s*/).filter(Boolean), b: [e.n], n: [], p: { drug_interactions: e.t }, s: e.k, t: 'r', r: [], src: 'eu', u: e.u });
+}
 const id = (i: string) => names.get(norm(i)) ?? norm(i);
 // a combination label speaks for an ingredient only when that ingredient has no label of its own: Excedrin's aspirin bleeding warning
 // is not about its acetaminophen, but Paxlovid's label is the only one for nirmatrelvir
@@ -130,6 +136,8 @@ for (const l of all) {
       let hits = entities(q, self).filter(h => !h.c || !self_in_class(self, h.id) || OTHER.test(low));
       // "Sedative/hypnotics: orally administered midazolam, triazolam" names the members it means; "(e.g., ketoconazole)" only gives examples
       if (!EXAMPLES.test(low)) hits = hits.filter(h => !h.c || !hits.some(d => !d.c && members_of(h.id).has(d.id)));
+      // EU PDFs flatten tables into long run-on lines; only short sentences there may speak for a whole class
+      if (l.src === 'eu' && q.length > 300) hits = hits.filter(h => !h.c);
       if (!hits.length) continue;
       let s = X.test(low) ? 'x' : A.test(low) ? 'a' : N.test(low) ? 'n' : C.test(low) ? 'c' : OTC_LEVEL[section] ?? '';
       if (!s) continue;
@@ -147,7 +155,7 @@ for (const l of all) {
         // homatropine" warnings are about the opioid); a single-ingredient label always speaks for its drug
         const named = l.i.length === 1 ? speaks_for : speaks_for.filter(x => low.includes(x));
         if (!named.length) continue;
-        findings.push({ a: named, b, s, f, u: up, d: down, q: q.slice(0, 600), k: section, i: l.s, t: l.b[0] ?? l.n[0] ?? l.i.join(' / '), r: l.r });
+        findings.push({ a: named, b, s, f, u: up, d: down, q: q.slice(0, 600), k: section, i: l.s, t: l.b[0] ?? l.n[0] ?? l.i.join(' / '), r: l.r, src: l.src, link: l.u });
       }
     }
   }

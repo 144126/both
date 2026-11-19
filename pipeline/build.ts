@@ -33,13 +33,14 @@ function state(a: string[], b: string[], ev: Evidence, via_class: number) {
 }
 const side = (name: string): [string[], string] => name.startsWith('class:') ? [[...members(name.slice(6))], CLASSES[name.slice(6)].n] : [[resolve(name) || name], ''];
 
-// US labels
+// US labels, and EU product information read the same way
 for (const f of json('data/sources/fda.json')) {
   const [b, cls] = side(f.b);
   const a = f.a.map((x: string) => resolve(x) || x).filter((x: string) => concept.has(x));
   if (!b.length || !a.length) continue;
-  state(a, b.filter(x => concept.has(x)), { r: 'us', s: f.s, o: { x: 'contraindicated', a: 'avoid', c: 'use with care', n: 'no meaningful interaction' }[f.s as string]!, t: f.q,
-    u: `https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=${f.i}`, n: `${f.t} label, ${f.k.replace(/_/g, ' ')}`, c: cls || undefined, f: f.f, up: f.u, dn: f.d }, cls ? 1 : 0);
+  const eu = f.src === 'eu';
+  state(a, b.filter(x => concept.has(x)), { r: eu ? 'eu' : 'us', s: f.s, o: { x: 'contraindicated', a: 'avoid', c: 'use with care', n: 'no meaningful interaction' }[f.s as string]!, t: f.q,
+    u: eu ? f.link : `https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=${f.i}`, n: eu ? `${f.t} EU product information, section 4.5` : `${f.t} label, ${f.k.replace(/_/g, ' ')}`, c: cls || undefined, f: f.f, up: f.u, dn: f.d }, cls ? 1 : 0);
 }
 
 // Norway
