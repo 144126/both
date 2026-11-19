@@ -98,9 +98,11 @@ const html_text = (s: string) => s.replace(/&#x([0-9a-f]+);/gi, (_, h) => String
 // OTC drug facts run their headings together; each heading starts a new statement
 const OTC_HEADING = /\s(?=(?:Ask a doctor or pharmacist before use|Ask a doctor before use|Do not use|Stop use and ask|When using this product|If pregnant|Keep out of reach|Liver warning|Stomach bleeding warning|Allergy alert)\b)/;
 // flattened tables run rows together without a full stop ("...same time of day Antineoplastic agents usually..."): a capitalised
-// class header after a lowercase word starts a new row
+// class header after a lowercase word starts a new row. Label highlights end each item with its section numbers instead of a full
+// stop ("...alpha blocking agents (5.2, 7.2, 12.3) Exercise caution with warfarin"): a capital after such a group starts a sentence.
+const SECTION_REFS = /(?<=\(\d{1,2}(?:\.\d{1,2})?(?:\s*,\s*\d{1,2}(?:\.\d{1,2})?)*\s*\))\s+(?=[A-Z])/;
 const ROW = /(?<=[a-z0-9)%])\s+(?=[A-Z][a-z]+(?:[- ][A-Za-z]+){0,2}\s(?:[Aa]gents|[Dd]rugs|[Ii]nhibitors|[Ii]nducers|[Aa]ntagonists|[Bb]lockers|[Ss]ubstrates|[Mm]edications|[Aa]nticoagulants|[Dd]iuretics)\b)/;
-const sentences = (s: string) => s.replace(/\s+/g, ' ').split(OTC_HEADING).flatMap(p => p.split(ROW)).flatMap(part => part.split(/(?<=[.;:])\s+(?=[A-Z(•●-])|\s(?=\d{1,2}\.\d{1,2}\s+[A-Z])|\s[•●]\s/)).map(x => x.trim()).filter(x => x.length > 12);
+const sentences = (s: string) => s.replace(/\s+/g, ' ').split(OTC_HEADING).flatMap(p => p.split(ROW)).flatMap(p => p.split(SECTION_REFS)).flatMap(part => part.split(/(?<=[.;:])\s+(?=[A-Z(•●-])|\s(?=\d{1,2}\.\d{1,2}\s+[A-Z])|\s[•●]\s/)).map(x => x.trim()).filter(x => x.length > 12);
 
 // a: label ingredients; b: other drug or class:<id>; s: x contraindicated, a avoid, c caution, n no meaningful interaction; f: effects;
 // u: ingredients whose level goes up; d: ... down; q: sentence; k: section; i: label set id; t: label brand or generic name; r: route
