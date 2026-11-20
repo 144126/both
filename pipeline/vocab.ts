@@ -6,7 +6,7 @@ import { gunzipSync } from 'node:zlib';
 import { base, plain, skeleton, US_NAME } from './names.ts';
 
 const json = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
-const lines = (path: string) => gunzipSync(readFileSync(path)).toString().split('\n').filter(Boolean);
+const lines = (path: string) => gunzipSync(readFileSync(path)).toString().split(/\r?\n/).filter(Boolean);
 
 // n: display name; s: synonyms (plain lowercase); a: ATC codes; x: RxNorm ingredient ids; u: UNIIs; e: FDA EPC classes; m: FDA MoA classes;
 // l: label set ids; f: 1 when only foreign sources know it
